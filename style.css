@@ -1,0 +1,124 @@
+/* GLOBAL STYLING */
+body {
+    background-color: #f2f4f8;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: #333;
+}
+
+h1, h2, h3, h4 {
+    color: #1a73e8;
+    font-weight: 600;
+}
+
+hr {
+    border: 1px solid #e0e0e0;
+}
+
+/* STREAMLIT HEADER */
+.st-emotion-cache-18ni7ap {
+    background: linear-gradient(to right, #1a73e8, #64b5f6);
+    color: white;
+    padding: 1rem;
+    border-radius: 10px;
+    margin-bottom: 2rem;
+    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.15);
+}
+
+/* TEXT INPUTS & NUMBER INPUTS */
+input[type="text"], input[type="number"] {
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 10px;
+    padding: 0.6rem 0.8rem;
+    width: 100%;
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.05);
+    transition: border 0.3s ease-in-out;
+}
+
+input[type="text"]:focus, input[type="number"]:focus {
+    border: 2px solid #1a73e8;
+    outline: none;
+}
+
+/* BUTTON */
+button[kind="primary"] {
+    background: linear-gradient(to right, #1a73e8, #64b5f6);
+    color: white;
+    border: none;
+    padding: 0.6rem 1.5rem;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    box-shadow: 0px 4px 15px rgba(26, 115, 232, 0.4);
+    transition: background 0.3s ease-in-out, transform 0.2s ease;
+    cursor: pointer;
+}
+
+button[kind="primary"]:hover {
+    background: linear-gradient(to right, #4285f4, #82c0ff);
+    transform: translateY(-2px);
+}
+
+/* SECTION HEADINGS */
+h2 {
+    border-left: 5px solid #1a73e8;
+    padding-left: 10px;
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+}
+
+/* INFO + WARNINGS */
+.stAlert {
+    border-radius: 10px;
+    padding: 0.8rem;
+}
+
+.stAlert[data-baseweb="alert"][data-testid="stAlert-info"] {
+    background-color: #e3f2fd;
+    border-left: 6px solid #1a73e8;
+    color: #0d47a1;
+}
+
+.stAlert[data-baseweb="alert"][data-testid="stAlert-warning"] {
+    background-color: #fff8e1;
+    border-left: 6px solid #fbc02d;
+    color: #7f6000;
+}
+
+/* SUCCESS */
+.stAlert[data-testid="stAlert-success"] {
+    background-color: #e8f5e9;
+    border-left: 6px solid #43a047;
+    color: #2e7d32;
+}
+
+/* JSON DISPLAY & SIDEBAR */
+.stSidebar {
+    background-color: #e3f2fd !important;
+    padding: 1rem;
+}
+
+.stSidebar .stMarkdown {
+    font-size: 0.9rem;
+}
+
+/* SCROLLBARS */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: #bbb;
+    border-radius: 10px;
+}
+
+/* FOOTNOTE CAPTION */
+.stMarkdown p:last-child {
+    font-size: 0.85rem;
+    color: #777;
+    font-style: italic;
+}
