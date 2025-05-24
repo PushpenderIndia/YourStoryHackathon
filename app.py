@@ -513,6 +513,9 @@ elif page == "Arts & Culture Hub":
     if selected_state:
         st.subheader(f"Famous Arts & Culture in {selected_state}")
 
+        # Add language dropdown
+        language = st.selectbox("Select Language", ["English", "Hindi", "Tamil", "Telugu", "Bengali"])
+
         # Define a function to call Gemini API
         def get_gemini_data(prompt):
             if not GEMINI_API_KEY:
@@ -570,10 +573,10 @@ elif page == "Arts & Culture Hub":
                 st.error(f"Error fetching image from Wikipedia: {e}")
                 return None
 
-        # Create the prompt for Gemini API to get arts and culture details
+        # Create the prompt for Gemini API to get arts and culture details with language preference
         arts_prompt = f"""
         You are an expert on Indian arts and culture. Provide a structured JSON response 
-        with the famous arts, cultural events, and heritage highlights for the state "{selected_state}".
+        with the famous arts, cultural events, and heritage highlights for the state "{selected_state}" in {language}.
         The JSON must have:
         - "description": a brief overview of the state's arts and culture.
         - "highlights": a list of 3 to 5 strings naming famous landmarks, cultural festivals or art forms.
