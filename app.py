@@ -12,6 +12,8 @@ from gtts import gTTS
 import tempfile 
 from smallestai.waves import WavesClient
 import wikipedia
+from fpdf import FPDF
+import io
 
 load_dotenv()
 
@@ -298,6 +300,52 @@ elif page == "Cultural Pulse Dashboard":
         and optimize your travel timing!
     </div>
     """, unsafe_allow_html=True)
+    
+    try:
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", 'B', 16)
+        pdf.cell(0, 10, "Cultural Pulse Dashboard Report", ln=1, align="C")
+        pdf.ln(5)
+        pdf.set_font("Arial", size=12)
+        pdf.cell(0, 10, f"Region: {selected_region}", ln=1)
+        pdf.cell(0, 10, f"Month: {selected_month}", ln=1)
+        pdf.cell(0, 10, f"Interest: {selected_interest}", ln=1)
+        pdf.ln(10)
+        pdf.set_font("Arial", 'B', 14)
+        pdf.cell(0, 10, "1. Tourist Footfall Over the Year", ln=1)
+        pdf.set_font("Arial", size=12)
+        if gemini_fp and "footfall_data" in gemini_fp:
+            for row in gemini_fp["footfall_data"]:
+                pdf.cell(0, 8, f"{row.get('month', '')}: {row.get('visitors', '')} visitors", ln=1)
+        else:
+            pdf.cell(0, 8, "No data available", ln=1)
+        pdf.ln(8)
+        pdf.set_font("Arial", 'B', 14)
+        pdf.cell(0, 10, "2. Most Busy Locations", ln=1)
+        pdf.set_font("Arial", size=12)
+        if gemini_busy and "busy_places" in gemini_busy:
+            for item in gemini_busy["busy_places"]:
+                pdf.cell(0, 8, f"{item.get('location', '')}: {item.get('crowd_percentage', '')}% crowd", ln=1)
+        else:
+            pdf.cell(0, 8, "No data available", ln=1)
+        pdf.ln(8)
+        pdf.set_font("Arial", 'B', 14)
+        pdf.cell(0, 10, "3. Hidden Gems", ln=1)
+        pdf.set_font("Arial", size=12)
+        if gemini_quiet and "quiet_places" in gemini_quiet:
+            for item in gemini_quiet["quiet_places"]:
+                pdf.cell(0, 8, f"{item.get('location', '')}: {item.get('crowd_percentage', '')}% crowd", ln=1)
+        else:
+            pdf.cell(0, 8, "No data available", ln=1)
+            
+        # Generate PDF in memory
+        pdf_output = pdf.output(dest='S').encode('latin1')
+        st.markdown("<div style='padding-top:20px'>", unsafe_allow_html=True)
+        st.download_button("Download PDF Report", data=pdf_output, file_name="cultural_pulse_report.pdf")
+        st.markdown("</div>", unsafe_allow_html=True)
+    except Exception as e:
+        st.error(f"Error generating PDF: {e}")
 
 else: # Whispering Walls Page
     st.title("🗣️ Whispering Walls – Audio Stories of Heritage Sites")
