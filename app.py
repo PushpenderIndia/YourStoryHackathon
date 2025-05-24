@@ -23,7 +23,7 @@ RAPIDAPI_KEY = os.environ.get("RAPIDAPI_KEY", "")
 RAPIDAPI_HOST = "booking-com15.p.rapidapi.com"
 SMALLEST_API_KEY = os.environ.get("SMALLEST_API_KEY", "")
 
-st.set_page_config(page_title="Rangyatra: Your Travel Planner", layout="wide")
+st.set_page_config(page_title="Rangyatra: Discover India’s Hidden Colors of Culture.", layout="wide")
 
 def local_css(file_name):
     with open(file_name) as f:
@@ -36,8 +36,9 @@ st.sidebar.title("Navigation")
 page = st.sidebar.radio("Go to", ["Travel Planner", "Cultural Pulse Dashboard", "Whispering Walls", "Arts & Culture Hub", "India's Cultural Grid"])
 
 if page == "Travel Planner":
-    st.title("✈️ Rangyatra: Your Personalized Travel Planner")
+    st.title("✈️ Rangyatra: Discover India’s Hidden Colors of Culture.")
     st.markdown("Plan your next adventure with AI-powered recommendations!")
+    st.markdown("Made with ❤️ by Team Malaai (Machine Learning And AI)")
 
     # Input fields
     st.header("Tell us about your trip:")
