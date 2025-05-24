@@ -36,9 +36,10 @@ st.sidebar.title("Navigation")
 page = st.sidebar.radio("Go to", ["Travel Planner", "Cultural Pulse Dashboard", "Whispering Walls", "Arts & Culture Hub", "India's Cultural Grid"])
 
 if page == "Travel Planner":
-    st.title("✈️ Rangyatra: Discover India’s Hidden Colors of Culture.")
-    st.markdown("Plan your next adventure with AI-powered recommendations!")
-    st.markdown("Made with ❤️ by Team Malaai (Machine Learning And AI)")
+    st.markdown("<h1 style='font-size:38px; text-align: center;'>Rangyatra: Discover India’s Hidden Colors of Culture.</h1>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align: center;'>Plan your next adventure with AI-powered recommendations!<br>Made with ❤️ by Team Malaai (Machine Learning And AI)</div>", unsafe_allow_html=True)
+    st.markdown("<div style='display: flex; justify-content: center; padding-top: 20px; padding-bottom: 20px;'>"
+                "<img src='https://i.ibb.co/gFZvVT9r/india-map.png' width='350'></div>", unsafe_allow_html=True)
 
     # Input fields
     st.header("Tell us about your trip:")
