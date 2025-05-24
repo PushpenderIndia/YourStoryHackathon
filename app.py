@@ -347,7 +347,7 @@ elif page == "Cultural Pulse Dashboard":
     except Exception as e:
         st.error(f"Error generating PDF: {e}")
 
-elif page == "Whispering Walls Page":
+elif page == "Whispering Walls":
     st.title("🗣️ Whispering Walls – Audio Stories of Heritage Sites")
     st.markdown("Click on a cultural site to hear its story, narrated like a local guide!")
 
