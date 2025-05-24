@@ -8,6 +8,10 @@ import pandas as pd
 import numpy as np
 import altair as alt
 import calendar
+from gtts import gTTS 
+import tempfile 
+from smallestai.waves import WavesClient
+import wikipedia
 
 load_dotenv()
 
@@ -15,6 +19,7 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 RAPIDAPI_KEY = os.environ.get("RAPIDAPI_KEY", "")
 RAPIDAPI_HOST = "booking-com15.p.rapidapi.com"
+SMALLEST_API_KEY = os.environ.get("SMALLEST_API_KEY", "")
 
 st.set_page_config(page_title="Rangyatra: Your Travel Planner", layout="wide")
 
@@ -26,7 +31,7 @@ local_css("style.css")
 
 # Page selection in sidebar
 st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["Travel Planner", "Cultural Pulse Dashboard"])
+page = st.sidebar.radio("Go to", ["Travel Planner", "Cultural Pulse Dashboard", "Whispering Walls"])
 
 if page == "Travel Planner":
     st.title("✈️ Rangyatra: Your Personalized Travel Planner")
@@ -173,7 +178,7 @@ if page == "Travel Planner":
                 except Exception as e:
                     st.error(f"Error generating plan: {str(e)}")
 
-else:
+elif page == "Cultural Pulse Dashboard":
     # Cultural Pulse Dashboard Page
     st.title("🌍 Cultural Pulse Dashboard – Season & Crowd Trends")
     
@@ -291,5 +296,117 @@ else:
     <div style='background: #f8f9fa; padding: 15px; border-radius: 10px; margin-top: 20px;'>
         🔍 <strong>Pro Tip:</strong> Adjust the filters above to discover seasonal patterns 
         and optimize your travel timing!
+    </div>
+    """, unsafe_allow_html=True)
+
+else: # Whispering Walls Page
+    st.title("🗣️ Whispering Walls – Audio Stories of Heritage Sites")
+    st.markdown("Click on a cultural site to hear its story, narrated like a local guide!")
+
+    cultural_sites_list = [
+        "Sanchi Stupa",
+        "Hampi",
+        "Taj Mahal",
+        "Mysore Palace",
+        "Qutub Minar",
+        "Red Fort",
+        "Victoria Memorial (Kolkata)",
+        "Konark Sun Temple",
+        "Khajuraho Temples",
+        "Fatehpur Sikri"
+    ]
+
+    selected_site = st.selectbox("Choose or type a cultural site:", cultural_sites_list + [""]) # Add empty string for typing
+
+    if selected_site == "":
+        typed_site = st.text_input("Or type the name of a cultural site:", "")
+        if typed_site:
+            selected_site = typed_site
+        else:
+            selected_site = None
+    elif selected_site is None:
+        pass # No site selected yet
+
+    if selected_site:
+        st.subheader(f"Exploring {selected_site}")
+
+        # Function to get a simple image URL (very basic, might not always work well)
+        def get_image_url(query):
+            try:
+                page = wikipedia.page(query)
+                for img_url in page.images:
+                    if img_url.lower().endswith(('.jpg', '.jpeg', '.png')):
+                        return img_url
+                return None
+            except Exception as e:
+                print(f"Error fetching image from Wikipedia: {e}")
+                return None
+
+        image_url = get_image_url(selected_site)
+        if image_url:
+            st.image(image_url, caption=selected_site, use_container_width=True)
+        else:
+            st.warning(f"Could not find a suitable image for {selected_site}.")
+
+        if st.button(f"Listen to the story of {selected_site} 🔊", type="primary"):
+            if not GEMINI_API_KEY:
+                st.error("Gemini API Key is not set! Please set the GEMINI_API_KEY environment variable.")
+            else:
+                with st.spinner(f"Generating audio story for {selected_site} using AI..."):
+                    try:
+                        prompt = f"""
+                        As a knowledgeable local guide, tell a short and engaging audio story (around 15 seconds when spoken) about the cultural significance, history, and key features of {selected_site} in a way that would captivate a visitor. Only write raw story text without any additional commentary or instructions.
+                        The story should be informative yet concise, suitable for a quick audio narration.
+                        """
+                        headers = {"Content-Type": "application/json"}
+                        payload = {
+                            "contents": [{
+                                "role": "user",
+                                "parts": [{"text": prompt}]
+                            }],
+                            "generationConfig": {"maxOutputTokens": 500} # Limit the response length
+                        }
+                        response = requests.post(f"{GEMINI_API_URL}?key={GEMINI_API_KEY}", headers=headers, json=payload)
+                        response.raise_for_status()
+                        result = response.json()
+                        if result.get("candidates") and result["candidates"][0].get("content") and result["candidates"][0]["content"].get("parts"):
+                            story_text = result["candidates"][0]["content"]["parts"][0]["text"]
+
+                            # Synthesize audio using WavesClient
+                            waves_client = WavesClient(api_key=SMALLEST_API_KEY)
+                            waves_client.synthesize(
+                                text=story_text,
+                                save_as="audio_story.wav",
+                            )
+
+                            with open("audio_story.wav", "rb") as audio_file:
+                                audio_bytes = audio_file.read()
+                            st.audio(audio_bytes, format="audio/wav", start_time=0)
+                            os.remove("audio_story.wav")
+
+                            st.success("Enjoy the story!")
+                            st.markdown("---")
+                            st.subheader("Story Transcript:")
+                            st.write(story_text) # Display the generated text as well
+
+                        else:
+                            st.error("Failed to generate the audio story.")
+
+                    except requests.exceptions.RequestException as e:
+                        st.error(f"Error communicating with Gemini API: {e}")
+                    except json.JSONDecodeError:
+                        st.error("Failed to decode Gemini API response.")
+                    except Exception as e:
+                        st.error(f"An unexpected error occurred: {e}")
+
+    st.markdown("""
+    <div style='background: #e6f7ff; padding: 15px; border-radius: 10px; margin-top: 20px;'>
+        ✨ <strong>Why "Whispering Walls" is unique:</strong><br>
+        <ul>
+            <li><strong>AI-Powered Stories:</strong> Engaging narratives about heritage sites generated by AI.</li>
+            <li><strong>Immersive & Inclusive:</strong> Experience history through audio, great for all users.</li>
+            <li><strong>Flexible Exploration:</strong> Discover stories of both well-known and lesser-known sites.</li>
+        </ul>
+        <br>
     </div>
     """, unsafe_allow_html=True)
