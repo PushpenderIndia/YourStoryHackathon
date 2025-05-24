@@ -40,7 +40,7 @@ if page == "Travel Planner":
     st.markdown("<div style='text-align: center;'>Plan your next adventure with AI-powered recommendations!<br>Made with ❤️ by Team Malaai (Machine Learning And AI)</div>", unsafe_allow_html=True)
     st.markdown("<div style='display: flex; justify-content: center; padding-top: 20px; padding-bottom: 20px;'>"
                 "<img src='https://i.ibb.co/gFZvVT9r/india-map.png' width='350'></div>", unsafe_allow_html=True)
-
+    
     # Input fields
     st.header("Tell us about your trip:")
     col1, col2, col3, col4 = st.columns(4)
