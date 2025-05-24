@@ -108,7 +108,7 @@ if st.button("✨ Generate Travel Plan", type="primary"):
                                 try:
                                     # Search hotels
                                     url = f"https://{RAPIDAPI_HOST}/api/v1/hotels/searchDestination"
-                                    params = {"query": place}
+                                    params = {"query": place.split("(")[0].strip()}
                                     headers = {
                                         "x-rapidapi-key": RAPIDAPI_KEY,
                                         "x-rapidapi-host": RAPIDAPI_HOST
