@@ -33,7 +33,7 @@ def local_css(file_name):
 
 # Page selection in sidebar
 st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["Travel Planner", "Cultural Pulse Dashboard", "Whispering Walls"])
+page = st.sidebar.radio("Go to", ["Travel Planner", "Cultural Pulse Dashboard", "Whispering Walls", "Arts & Culture Hub"])
 
 if page == "Travel Planner":
     st.title("✈️ Rangyatra: Your Personalized Travel Planner")
@@ -347,7 +347,7 @@ elif page == "Cultural Pulse Dashboard":
     except Exception as e:
         st.error(f"Error generating PDF: {e}")
 
-else: # Whispering Walls Page
+elif page == "Whispering Walls Page":
     st.title("🗣️ Whispering Walls – Audio Stories of Heritage Sites")
     st.markdown("Click on a cultural site to hear its story, narrated like a local guide!")
 
@@ -496,3 +496,105 @@ else: # Whispering Walls Page
         <br>
     </div>
     """, unsafe_allow_html=True)
+
+elif page == "Arts & Culture Hub":
+    # India Arts & Culture Map
+    st.header("🖼️ India Arts & Culture Map")
+    state_names = [
+        "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
+        "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka",
+        "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram",
+        "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana",
+        "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal"
+    ]
+    
+    st.markdown("### Select a state to explore its Arts & Culture")
+    selected_state = st.selectbox("Select a state", [""] + state_names)
+    if selected_state:
+        st.subheader(f"Famous Arts & Culture in {selected_state}")
+
+        # Define a function to call Gemini API
+        def get_gemini_data(prompt):
+            if not GEMINI_API_KEY:
+                st.error("Gemini API Key is not set!")
+                return None
+            headers = {"Content-Type": "application/json"}
+            payload = {
+                "contents": [{
+                    "role": "user",
+                    "parts": [{"text": prompt}]
+                }],
+                "generationConfig": {"responseMimeType": "application/json"}
+            }
+            try:
+                response = requests.post(f"{GEMINI_API_URL}?key={GEMINI_API_KEY}", headers=headers, json=payload)
+                response.raise_for_status()
+                result = response.json()
+                if (result.get("candidates") 
+                    and result["candidates"][0].get("content") 
+                    and result["candidates"][0]["content"].get("parts")):
+                    data_text = result["candidates"][0]["content"]["parts"][0]["text"]
+                    return json.loads(data_text)
+                else:
+                    st.error("Invalid response from Gemini API")
+            except Exception as e:
+                st.error(f"Error fetching data from Gemini API: {e}")
+            return None
+
+        # Define a helper to fetch Wikipedia image
+        def get_wikipedia_image_url(query):
+            try:
+                search_results = wikipedia.search(query, results=1)
+                if not search_results:
+                    return None
+                page_title = search_results[0]
+                api_url = "https://en.wikipedia.org/w/api.php"
+                params = {
+                    "action": "query",
+                    "format": "json",
+                    "titles": page_title,
+                    "prop": "pageimages",
+                    "pithumbsize": 500,
+                    "redirects": 1
+                }
+                resp = requests.get(api_url, params=params)
+                resp.raise_for_status()
+                data = resp.json()
+                pages = data.get("query", {}).get("pages", {})
+                for page_id in pages:
+                    page_info = pages[page_id]
+                    if "thumbnail" in page_info:
+                        return page_info["thumbnail"]["source"]
+                return None
+            except Exception as e:
+                st.error(f"Error fetching image from Wikipedia: {e}")
+                return None
+
+        # Create the prompt for Gemini API to get arts and culture details
+        arts_prompt = f"""
+        You are an expert on Indian arts and culture. Provide a structured JSON response 
+        with the famous arts, cultural events, and heritage highlights for the state "{selected_state}".
+        The JSON must have:
+        - "description": a brief overview of the state's arts and culture.
+        - "highlights": a list of 3 to 5 strings naming famous landmarks, cultural festivals or art forms.
+        Do not include any extra commentary.
+        """
+        with st.spinner(f"Fetching arts & culture info for {selected_state}..."):
+            culture_data = get_gemini_data(arts_prompt)
+
+        if culture_data:
+            st.write(culture_data.get("description", "No description available."))
+
+            highlights = culture_data.get("highlights", [])
+            if highlights:
+                st.markdown("### Highlights")
+                for item in highlights:
+                    image_url = get_wikipedia_image_url(item)
+                    if image_url:
+                        st.image(image_url, caption=item, use_container_width=True)
+                    else:
+                        st.write(f"- {item}")
+            else:
+                st.warning("No highlights information found.")
+        else:
+            st.error("Failed to retrieve arts & culture details.")
