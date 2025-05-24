@@ -33,7 +33,7 @@ def local_css(file_name):
 
 # Page selection in sidebar
 st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["Travel Planner", "Cultural Pulse Dashboard", "Whispering Walls", "Arts & Culture Hub"])
+page = st.sidebar.radio("Go to", ["Travel Planner", "Cultural Pulse Dashboard", "Whispering Walls", "Arts & Culture Hub", "India's Cultural Grid"])
 
 if page == "Travel Planner":
     st.title("✈️ Rangyatra: Your Personalized Travel Planner")
@@ -601,3 +601,66 @@ elif page == "Arts & Culture Hub":
                 st.warning("No highlights information found.")
         else:
             st.error("Failed to retrieve arts & culture details.")
+
+elif page == "India's Cultural Grid":
+    # Gemini API integration for cultural comparison
+    st.title("🇮🇳 India's Cultural Grid – State-by-State Comparison")
+    st.markdown("Explore cultural statistics and trends across Indian states!")
+    st.markdown("This section provides a structured comparison of cultural data across various states in India, focusing on endangered art forms, festivals, tourist footfall, cultural revenue, accessibility scores, and government schemes.")
+    def get_gemini_data(prompt):
+        if not GEMINI_API_KEY:
+            st.error("Gemini API Key is not set!")
+            return None
+        headers = {"Content-Type": "application/json"}
+        payload = {
+            "contents": [{
+                "role": "user",
+                "parts": [{"text": prompt}]
+            }],
+            "generationConfig": {"responseMimeType": "application/json"}
+        }
+        try:
+            response = requests.post(f"{GEMINI_API_URL}?key={GEMINI_API_KEY}", headers=headers, json=payload)
+            response.raise_for_status()
+            result = response.json()
+            if (result.get("candidates") and 
+                result["candidates"][0].get("content") and 
+                result["candidates"][0]["content"].get("parts")):
+                data_text = result["candidates"][0]["content"]["parts"][0]["text"]
+                return json.loads(data_text)
+            else:
+                st.error("Invalid response from Gemini API")
+        except Exception as e:
+            st.error(f"Error fetching data from Gemini API: {e}")
+        return None
+
+    with st.spinner("Fetching cultural comparison data..."):
+        prompt = """
+        You are an expert on cultural statistics and trends in India. Provide a structured JSON response containing a list of cultural comparison data for various states/regions.
+        Each entry must include:
+        - "state_region": name of the state or region.
+        - "endangered_art_form": an endangered art form prevalent in that region.
+        - "festival_upcoming": name of an upcoming festival.
+        - "tourist_footfall": an estimated number of tourists.
+        - "cultural_revenue": cultural revenue in crore rupees (₹ Cr).
+        - "accessibility_score": a score from 1 to 10 representing cultural accessibility.
+        - "govt_scheme_active": "Yes" or "No" indicating if a relevant government scheme is active.
+        The JSON should have a single key "states_data" which is an array of these objects.
+        Do not include any additional commentary.
+        """
+        data = get_gemini_data(prompt)
+
+    if data and "states_data" in data:
+        df = pd.DataFrame(data["states_data"])
+        df = df.rename(columns={
+            "state_region": "State/Region",
+            "endangered_art_form": "Endangered Art Form",
+            "festival_upcoming": "Festival (Upcoming)",
+            "tourist_footfall": "Tourist Footfall",
+            "cultural_revenue": "Cultural Revenue (₹ Cr)",
+            "accessibility_score": "Accessibility Score",
+            "govt_scheme_active": "Govt. Scheme Active"
+        })
+        st.table(df)
+    else:
+        st.error("Failed to retrieve cultural comparison data.")
