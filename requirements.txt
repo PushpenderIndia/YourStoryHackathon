@@ -12,6 +12,8 @@ cachetools==5.5.2
 certifi==2025.4.26
 charset-normalizer==3.4.2
 click==8.1.8
+decorator==5.2.1
+fpdf==1.7.2
 frozenlist==1.6.0
 gitdb==4.0.12
 GitPython==3.1.44
@@ -24,10 +26,13 @@ googleapis-common-protos==1.70.0
 gTTS==2.5.4
 httplib2==0.22.0
 idna==3.10
+imageio==2.37.0
+imageio-ffmpeg==0.6.0
 Jinja2==3.1.6
 jsonschema==4.23.0
 jsonschema-specifications==2025.4.1
 MarkupSafe==3.0.2
+moviepy==2.2.1
 multidict==6.4.4
 narwhals==1.40.0
 numpy==2.2.6
@@ -36,6 +41,7 @@ oauthlib==3.2.2
 packaging==24.2
 pandas==2.2.3
 pillow==11.2.1
+proglog==0.1.12
 propcache==0.3.1
 proto-plus==1.26.1
 protobuf==6.31.0
@@ -63,6 +69,7 @@ streamlit==1.45.1
 tenacity==9.1.2
 toml==0.10.2
 tornado==6.5.1
+tqdm==4.67.1
 typing-inspection==0.4.1
 typing_extensions==4.13.2
 tzdata==2025.2
