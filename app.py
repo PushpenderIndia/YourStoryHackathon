@@ -331,18 +331,55 @@ else: # Whispering Walls Page
         st.subheader(f"Exploring {selected_site}")
 
         # Function to get a simple image URL (very basic, might not always work well)
-        def get_image_url(query):
+        def get_main_wikipedia_image_url(query):
             try:
-                page = wikipedia.page(query)
-                for img_url in page.images:
-                    if img_url.lower().endswith(('.jpg', '.jpeg', '.png')):
-                        return img_url
-                return None
-            except Exception as e:
-                print(f"Error fetching image from Wikipedia: {e}")
+                # Step 1: Search for the page to get the exact title
+                search_results = wikipedia.search(query, results=1)
+                if not search_results:
+                    return None
+                
+                page_title = search_results[0]
+                
+                # Step 2: Use MediaWiki API to get page images (more robust than wikipedia.page.images)
+                # This API call often returns a 'thumbnail' or 'original' URL if available.
+                api_url = "https://en.wikipedia.org/w/api.php"
+                params = {
+                    "action": "query",
+                    "format": "json",
+                    "titles": page_title,
+                    "prop": "pageimages",
+                    "pithumbsize": 500, # Request a thumbnail of this size
+                    "redirects": 1 # Follow redirects
+                }
+                
+                response = requests.get(api_url, params=params)
+                response.raise_for_status() # Raise an exception for HTTP errors
+                data = response.json()
+                
+                pages = data.get("query", {}).get("pages", {})
+                for page_id in pages:
+                    page_info = pages[page_id]
+                    if "thumbnail" in page_info:
+                        return page_info["thumbnail"]["source"]
+                    elif "original" in page_info.get("pageimageinfo", {}): # Sometimes image info is nested differently
+                        return page_info["pageimageinfo"]["original"]["url"]
                 return None
 
-        image_url = get_image_url(selected_site)
+            except wikipedia.exceptions.DisambiguationError as e:
+                st.warning(f"Multiple results found for '{query}'. Trying the first option: {e.options[0]}.")
+                # Try to get image for the first option
+                return get_main_wikipedia_image_url(e.options[0])
+            except wikipedia.exceptions.PageError:
+                st.warning(f"No Wikipedia page found for '{query}'.")
+                return None
+            except requests.exceptions.RequestException as e:
+                st.error(f"Network error while fetching image: {e}")
+                return None
+            except Exception as e:
+                st.error(f"An unexpected error occurred while fetching image: {e}")
+                return None
+
+        image_url = get_main_wikipedia_image_url(selected_site)
         if image_url:
             st.image(image_url, caption=selected_site, use_container_width=True)
         else:
@@ -377,6 +414,7 @@ else: # Whispering Walls Page
                             waves_client.synthesize(
                                 text=story_text,
                                 save_as="audio_story.wav",
+                                voice_id="raj",
                             )
 
                             with open("audio_story.wav", "rb") as audio_file:
