@@ -20,6 +20,9 @@ load_dotenv()
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 RAPIDAPI_KEY = os.environ.get("RAPIDAPI_KEY", "")
+RAPIDAPI_KEY_1 = os.environ.get("RAPIDAPI_KEY_1", "")
+RAPIDAPI_KEY_2 = os.environ.get("RAPIDAPI_KEY_2", "")
+RAPIDAPI_KEYS = [RAPIDAPI_KEY, RAPIDAPI_KEY_1, RAPIDAPI_KEY_2] 
 RAPIDAPI_HOST = "booking-com15.p.rapidapi.com"
 SMALLEST_API_KEY = os.environ.get("SMALLEST_API_KEY", "")
 
@@ -119,35 +122,42 @@ if page == "Travel Planner":
                             for place in travel_plan["recommended_places"]:
                                 st.subheader(f"Places to visit and stay near {place}")
                                 
-                                if RAPIDAPI_KEY:
-                                    try:
-                                        # Search hotels
-                                        url = f"https://{RAPIDAPI_HOST}/api/v1/hotels/searchDestination"
-                                        params = {"query": place.split("(")[0].strip()}
-                                        headers = {
-                                            "x-rapidapi-key": RAPIDAPI_KEY,
-                                            "x-rapidapi-host": RAPIDAPI_HOST
-                                        }
-                                        resp = requests.get(url, headers=headers, params=params)
-                                        resp.raise_for_status()
-                                        hotels = resp.json().get("data", [])[:3]  # Show top 3
+                                if RAPIDAPI_KEYS:  # List of API keys
+                                    success = False
+                                    for api_key in RAPIDAPI_KEYS:
+                                        try:
+                                            # Search hotels
+                                            url = f"https://{RAPIDAPI_HOST}/api/v1/hotels/searchDestination"
+                                            params = {"query": place.split("(")[0].strip()}
+                                            headers = {
+                                                "x-rapidapi-key": api_key,
+                                                "x-rapidapi-host": RAPIDAPI_HOST
+                                            }
+                                            resp = requests.get(url, headers=headers, params=params)
+                                            resp.raise_for_status()
+                                            hotels = resp.json().get("data", [])[:3]  # Show top 3
 
-                                        if hotels:
-                                            for hotel in hotels:
-                                                if hotel.get("search_type") == "hotel":
-                                                    col1, col2 = st.columns([1, 3])
-                                                    with col1:
-                                                        st.image(hotel.get("image_url", ""), width=150)
-                                                    with col2:
-                                                        st.write(f"**{hotel.get('name')}**")
-                                                        st.caption(hotel.get("label", ""))
-                                                    st.markdown("---")
-                                        else:
-                                            st.warning(f"No hotels found near {place}")
-                                    except Exception as e:
-                                        st.error(f"Error fetching hotels: {str(e)}")
+                                            if hotels:
+                                                for hotel in hotels:
+                                                    if hotel.get("search_type") == "hotel":
+                                                        col1, col2 = st.columns([1, 3])
+                                                        with col1:
+                                                            st.image(hotel.get("image_url", ""), width=150)
+                                                        with col2:
+                                                            st.write(f"**{hotel.get('name')}**")
+                                                            st.caption(hotel.get("label", ""))
+                                                        st.markdown("---")
+                                            else:
+                                                st.warning(f"No hotels found near {place}")
+                                            success = True
+                                            break  # Exit loop on success
+                                        except Exception as e:
+                                            pass 
+                                    
+                                    if not success:
+                                        st.error("All RapidAPI keys failed. Unable to fetch hotel recommendations.")
                                 else:
-                                    st.warning("RapidAPI key missing - cannot show hotel recommendations")
+                                    st.warning("RapidAPI key(s) missing - cannot show hotel recommendations")
 
                         # Display other sections
                         st.header("🍽️ Food Recommendations")
