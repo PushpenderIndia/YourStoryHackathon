@@ -119,8 +119,8 @@ def display_login_signup_forms():
     login_tab, signup_tab = st.tabs(["Login", "Signup"])
     with login_tab:
         st.subheader("Login")
-        login_username = st.text_input("Username", key="login_username_main")
-        login_password = st.text_input("Password", type="password", key="login_password_main")
+        login_username = st.text_input("Username *", key="login_username_main", placeholder="Enter your username", help="This field is required.")
+        login_password = st.text_input("Password *", type="password", key="login_password_main", placeholder="Enter your password", help="This field is required.")
         if st.button("Login", key="login_button_main"):
             login_user(login_username, login_password)
     with signup_tab:
@@ -132,18 +132,23 @@ def display_login_signup_forms():
 
 # Page selection in sidebar
 st.sidebar.title("Navigation")
-page_options = ["Travel Planner", "Cultural Pulse Dashboard", "Whispering Walls", "Arts & Culture Hub", "Social Survey"]
+page_options = ["Travel Planner", "Cultural Pulse Dashboard", "Whispering Walls", "Arts & Culture Hub", "Social Survey", "Login/Signup"]
 if st.session_state.logged_in:
     st.sidebar.success(f"Logged in as {st.session_state.username}")
     if st.sidebar.button("Logout"):
         logout_user()
 else:
     st.sidebar.info("Please login or signup to access all features.")
-    if st.sidebar.button("Login/Signup"):
-        display_login_signup_forms()
 
 page = st.sidebar.radio("Go to", page_options)
 selected_page = params.get("page") or page
+
+if selected_page == "Login/Signup":
+    if st.session_state.logged_in:
+        st.success(f"You are already logged in as {st.session_state.username}.")
+        st.sidebar.success("You can now access all features.")
+    else:
+        display_login_signup_forms()
 
 if selected_page == "Travel Planner":
     st.markdown("<h1 style='font-size:38px; text-align: center;'>Rangyatra: Discover India’s Hidden Colors of Culture.</h1>", unsafe_allow_html=True)
