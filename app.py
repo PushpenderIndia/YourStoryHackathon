@@ -15,10 +15,8 @@ import wikipedia
 from fpdf import FPDF
 import io
 import pymongo
-import os # os was already imported, but ensuring it's here for clarity
 import uuid
 import urllib.parse
-from datetime import datetime # Ensure datetime is imported
 
 load_dotenv()
 
@@ -30,10 +28,10 @@ RAPIDAPI_KEY_2 = os.environ.get("RAPIDAPI_KEY_2", "")
 RAPIDAPI_KEYS = [RAPIDAPI_KEY, RAPIDAPI_KEY_1, RAPIDAPI_KEY_2] 
 RAPIDAPI_HOST = "booking-com15.p.rapidapi.com"
 SMALLEST_API_KEY = os.environ.get("SMALLEST_API_KEY", "")
+MONGO_CONNECTION_STRING = os.environ.get("MONGODB_URI", "")
 
-# MongoDB Connection
-# Ideally, this should be an environment variable for security and flexibility.
-MONGO_CONNECTION_STRING = "mongodb+srv://singhpushpender250:iBrv4XqSbRVyHf6v@rangyatra.kyorhtm.mongodb.net/" # Replace with your actual connection string if different
+st.set_page_config(page_title="Rangyatra: Discover India's Hidden Colors of Culture.", layout="wide")
+
 
 @st.cache_resource
 def init_connection():
@@ -42,15 +40,13 @@ def init_connection():
         client = pymongo.MongoClient(MONGO_CONNECTION_STRING)
         client.admin.command('ping') # Verify connection
         db = client.rangyatra # Select the database
-        st.success("Successfully connected to MongoDB!")
+        # st.success("Successfully connected to MongoDB!")
         return db
     except Exception as e:
         st.error(f"Failed to connect to MongoDB: {e}")
         return None
 
 db = init_connection() # Initialize connection when the app starts
-
-st.set_page_config(page_title="Rangyatra: Discover India’s Hidden Colors of Culture.", layout="wide")
 
 def local_css(file_name):
     with open(file_name) as f:
@@ -676,7 +672,7 @@ elif page == "Arts & Culture Hub":
 elif page == "Social Survey":
     st.title("Social Survey")
 
-    if not db:
+    if db is None:
         st.error("Database connection not available. Please check MongoDB setup.")
         st.stop()
 
