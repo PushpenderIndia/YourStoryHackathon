@@ -17,6 +17,7 @@ import io
 import pymongo
 import uuid
 import urllib.parse
+from werkzeug.security import generate_password_hash, check_password_hash
 
 load_dotenv()
 
@@ -55,11 +56,93 @@ def local_css(file_name):
 
 # local_css("style.css")
 
+# --- Authentication State ---
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+if "username" not in st.session_state:
+    st.session_state.username = ""
+
+# --- Database Collections (ensure db is initialized) ---
+users_collection = None
+responses_collection_survey = None # Renamed to avoid conflict if you have other 'responses'
+surveys_collection = None
+
+if db:
+    users_collection = db["users"]
+    responses_collection_survey = db["social_survey_responses"] # Specific name for survey responses
+    surveys_collection = db["surveys"]
+else:
+    st.error("Database connection failed. User authentication and survey features will not work.")
+    # Optionally, stop the app or disable features if db is critical
+    # st.stop()
+
+
+# --- SIGNUP LOGIC ---
+def signup_user(username, password):
+    if not users_collection:
+        st.error("Database not available for signup.")
+        return
+    if users_collection.find_one({"username": username}):
+        st.error("Username already exists. Please choose a different one.")
+    else:
+        hashed_password = generate_password_hash(password)
+        users_collection.insert_one({"username": username, "password": hashed_password})
+        st.session_state.logged_in = True
+        st.session_state.username = username
+        st.success("Signup successful! You are now logged in.")
+        st.experimental_rerun() # Rerun to reflect login state
+
+# --- LOGIN LOGIC ---
+def login_user(username, password):
+    if not users_collection:
+        st.error("Database not available for login.")
+        return
+    user = users_collection.find_one({"username": username})
+    if user and check_password_hash(user["password"], password):
+        st.session_state.logged_in = True
+        st.session_state.username = username
+        st.success("Logged in successfully!")
+        st.experimental_rerun() # Rerun to reflect login state
+    else:
+        st.error("Invalid username or password")
+
+# --- LOGOUT LOGIC ---
+def logout_user():
+    st.session_state.logged_in = False
+    st.session_state.username = None
+    st.success("You have been logged out.")
+    st.experimental_rerun()
+
 # Page selection in sidebar
 st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["Travel Planner", "Cultural Pulse Dashboard", "Whispering Walls", "Arts & Culture Hub", "Social Survey"])
+page_options = ["Travel Planner", "Cultural Pulse Dashboard", "Whispering Walls", "Arts & Culture Hub", "Social Survey"]
+if st.session_state.logged_in:
+    st.sidebar.success(f"Logged in as {st.session_state.username}")
+    if st.sidebar.button("Logout"):
+        logout_user()
+else:
+    st.sidebar.info("Please login or signup to access all features.")
 
+page = st.sidebar.radio("Go to", page_options)
 selected_page = params.get("page") or page
+
+
+# --- Centralized Login/Signup UI (shown if not logged in and trying to access certain pages) ---
+def display_login_signup_forms():
+    st.warning("You need to log in or sign up to access this feature.")
+    login_tab, signup_tab = st.tabs(["Login", "Signup"])
+    with login_tab:
+        st.subheader("Login")
+        login_username = st.text_input("Username", key="login_username_main")
+        login_password = st.text_input("Password", type="password", key="login_password_main")
+        if st.button("Login", key="login_button_main"):
+            login_user(login_username, login_password)
+    with signup_tab:
+        st.subheader("Create Account")
+        signup_username = st.text_input("Username", key="signup_username_main")
+        signup_password = st.text_input("Password", type="password", key="signup_password_main")
+        if st.button("Signup", key="signup_button_main"):
+            signup_user(signup_username, signup_password)
 
 if selected_page == "Travel Planner":
     st.markdown("<h1 style='font-size:38px; text-align: center;'>Rangyatra: Discover India’s Hidden Colors of Culture.</h1>", unsafe_allow_html=True)
@@ -661,14 +744,21 @@ elif selected_page == "Arts & Culture Hub":
 elif selected_page == "Social Survey":
     st.title("Social Survey")
 
-    if db is None:
-        st.error("Database connection not available. Please check MongoDB setup.")
+    if not db: # db was already checked, but good practice if this section is standalone
+        st.error("Database connection not available. Social Survey cannot function.")
         st.stop()
 
-    surveys_collection = db["surveys"]
-    responses_collection = db["responses"]
+    # Collections are already defined globally: surveys_collection, responses_collection_survey
 
-    BANNED_WORDS = ["badword1", "profanity2", "exampleabuse3", "hate", "violence"]
+    if not st.session_state.logged_in:
+        display_login_signup_forms()
+    else:
+        st.success(f"Welcome to the Social Survey, {st.session_state.username}!")
+        # Add Logout button specific to this page if required by task
+        if st.button("Logout from Survey Page", key="logout_survey_button"):
+            logout_user()
+
+        BANNED_WORDS = ["badword1", "profanity2", "exampleabuse3", "hate", "violence"]
 
     survey_id_from_url = None
     if "survey_id" in params:
@@ -684,13 +774,19 @@ elif selected_page == "Social Survey":
         st.subheader("Respond to Survey")
         st.markdown(f"**Question:** {question_from_url}")
 
-        user_response = st.text_area("Your Response:", key=f"response_area_{survey_id_from_url}")
+        if not st.session_state.logged_in:
+            st.warning("Please log in or sign up to respond to this survey.")
+            # display_login_signup_forms() is already called if not logged_in at the start of "Social Survey" page.
+            # So, just the message is sufficient here, or we can call it again if more direct context is needed.
+            # For now, assuming the top-level call to display_login_signup_forms is adequate.
+        else:
+            user_response = st.text_area("Your Response:", помощи=f"Responding as {st.session_state.username}", key=f"response_area_{survey_id_from_url}")
 
-        if st.button("Submit Response", type="primary", key=f"submit_response_{survey_id_from_url}"):
-            if not user_response.strip():
-                st.warning("Please enter a response.")
-            else:
-                response_text = user_response.strip()
+            if st.button("Submit Response", type="primary", key=f"submit_response_{survey_id_from_url}"):
+                if not user_response.strip():
+                    st.warning("Please enter a response.")
+                else:
+                    response_text = user_response.strip()
                 response_lower = response_text.lower()
                 contains_banned_word = False
                 for word in BANNED_WORDS:
@@ -704,15 +800,26 @@ elif selected_page == "Social Survey":
                     response_doc = {
                         "survey_id": survey_id_from_url,
                         "response_text": response_text,
-                        "responded_at": datetime.utcnow()
+                    "responded_at": datetime.utcnow(),
+                    "responder_username": st.session_state.username # Associate user with response
                     }
                     try:
-                        responses_collection.insert_one(response_doc)
-                        st.success("Your response has been submitted successfully!")
+                        # Ensure responses_collection_survey is used
+                        if responses_collection_survey is not None:
+                            responses_collection_survey.insert_one(response_doc)
+                            st.success("Your response has been submitted successfully!")
+                        else:
+                            st.error("Response collection not available.")
                     except Exception as e:
                         st.error(f"Failed to submit response: {e}")
-    else:
+    # Create new survey part - only if logged in
+    # This section is already within the `else` block of `if not st.session_state.logged_in:`.
+    # Now, we refine it to ensure the form for creating surveys is also explicitly under this condition.
+
+        # Survey Creation Form
         st.subheader("Create a New Social Survey")
+        # The following form elements were already here and correctly placed under the login check.
+        # No need to move them, just confirming their placement.
         location_xyz = st.text_input("Enter a location (e.g., 'your city', 'a nearby park') for {XYZ} placeholder:")
         date_abc = st.text_input("Enter a date or event (e.g., 'next weekend', 'tomorrow evening') for {ABC} placeholder (optional):")
 
@@ -749,7 +856,8 @@ elif selected_page == "Social Survey":
                     survey_doc = {
                         "survey_id": survey_id,
                         "question": final_question,
-                        "created_at": datetime.utcnow()
+                        "created_at": datetime.utcnow(),
+                        "creator_username": st.session_state.username # Associate user with survey
                     }
                     surveys_collection.insert_one(survey_doc)
 
@@ -768,17 +876,22 @@ elif selected_page == "Social Survey":
         st.markdown("---")
         st.subheader("Past Survey Responses")
 
-        try:
-            all_surveys_cursor = surveys_collection.find().sort("created_at", -1)
-            all_surveys = list(all_surveys_cursor)
-        except Exception as e:
-            st.error(f"Error fetching surveys: {e}")
-            all_surveys = []
-
-        if not all_surveys:
-            st.info("No surveys have been created yet.")
+        if not st.session_state.logged_in:
+            st.info("Log in to see your surveys and responses.")
         else:
-            items_per_page = 5
+            try:
+                # Filter surveys by the logged-in user
+                username = st.session_state.username
+                all_surveys_cursor = surveys_collection.find({"creator_username": username}).sort("created_at", -1)
+                all_surveys = list(all_surveys_cursor)
+            except Exception as e:
+                st.error(f"Error fetching your surveys: {e}")
+                all_surveys = []
+
+            if not all_surveys:
+                st.info("You have not created any surveys yet.")
+            else:
+                items_per_page = 5
             total_surveys = len(all_surveys)
             total_pages = (total_surveys + items_per_page - 1) // items_per_page
             if total_pages == 0: total_pages = 1
@@ -797,16 +910,26 @@ elif selected_page == "Social Survey":
                     survey_question = survey.get('question', 'N/A')
                     survey_id_display = survey.get('survey_id', 'N/A')
                     created_at_display = survey.get('created_at')
+                    creator_username_display = survey.get('creator_username') # Get creator username
 
                     st.markdown(f"#### Survey Question: {survey_question}")
+                    caption_text = f"Survey ID: {survey_id_display}"
                     if created_at_display:
-                        st.caption(f"Survey ID: {survey_id_display} | Created: {created_at_display.strftime('%Y-%m-%d %H:%M:%S UTC')}")
+                        caption_text += f" | Created: {created_at_display.strftime('%Y-%m-%d %H:%M:%S UTC')}"
+                    if creator_username_display:
+                        caption_text += f" | By: {creator_username_display}"
                     else:
-                        st.caption(f"Survey ID: {survey_id_display} | Created: N/A")
+                        caption_text += " | By: Anonymous (older survey)" # Handle older surveys
+                    st.caption(caption_text)
 
                     try:
-                        survey_responses_cursor = responses_collection.find({"survey_id": survey_id_display}).sort("responded_at", -1)
-                        survey_responses = list(survey_responses_cursor)
+                        # Ensure responses_collection_survey is used
+                        if responses_collection_survey is not None:
+                            survey_responses_cursor = responses_collection_survey.find({"survey_id": survey_id_display}).sort("responded_at", -1)
+                            survey_responses = list(survey_responses_cursor)
+                        else:
+                            survey_responses = []
+                            st.error("Response collection not available.")
                     except Exception as e:
                         st.error(f"Error fetching responses for survey ID {survey_id_display}: {e}")
                         survey_responses = []
@@ -818,11 +941,20 @@ elif selected_page == "Social Survey":
                             for i, response in enumerate(survey_responses):
                                 response_text = response.get('response_text', 'N/A')
                                 responded_at_display = response.get('responded_at')
+                                responder_username_display = response.get('responder_username')
 
-                                st.markdown(f"**Response {i+1}:** {response_text}")
+                                response_label = f"**Response {i+1}"
+                                if responder_username_display:
+                                    response_label += f" by {responder_username_display}"
+                                response_label += ":**"
+                                st.markdown(f"{response_label} {response_text}")
+
+                                caption_response_text = ""
                                 if responded_at_display:
-                                    st.caption(f"Responded at: {responded_at_display.strftime('%Y-%m-%d %H:%M:%S UTC')}")
+                                    caption_response_text = f"Responded at: {responded_at_display.strftime('%Y-%m-%d %H:%M:%S UTC')}"
                                 else:
-                                    st.caption("Responded at: N/A")
+                                    caption_response_text = "Responded at: N/A"
+                                st.caption(caption_response_text)
+
                                 if i < len(survey_responses) - 1:
                                     st.markdown("---")
