@@ -265,6 +265,159 @@ elif selected_page == "Cultural Pulse Dashboard":
             st.error(f"Error fetching data from Gemini API: {str(e)}")
         return None
 
+    # Section 1 – Tourist Footfall using Gemini APIAdd commentMore actions
+    st.subheader("📈 Tourist Footfall Over the Year")
+    with st.spinner("Fetching tourist footfall data..."):
+        prompt_fp = f"""
+        Provide monthly tourist footfall data for the region "{selected_region}" for the year 2024.
+        The data should be a JSON with a key "footfall_data" that is a list of 12 objects.
+        Each object must contain:
+        - "month": a three-letter abbreviation (e.g., "Jan", "Feb", etc.)
+        - "visitors": an integer value representing the number of visitors.
+        """
+        gemini_fp = get_gemini_data(prompt_fp)
+    if gemini_fp and "footfall_data" in gemini_fp:
+        footfall_data = pd.DataFrame(gemini_fp["footfall_data"])
+        # Sort the months properly
+        month_order = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", 
+                       "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        footfall_data['month'] = pd.Categorical(footfall_data['month'], categories=month_order, ordered=True)
+        footfall_data = footfall_data.sort_values('month')
+        st.line_chart(footfall_data.set_index("month"), use_container_width=True)
+    else:
+        st.error("Tourist footfall data not available.")
+
+    # Section 2 – Crowd Comparison using Gemini API
+    st.subheader("🏙️ Crowd Distribution Insights")
+    col1, col2 = st.columns(2)
+    
+    # Busy Locations using Gemini API
+    with col1:
+        st.markdown("**Most Busy Locations**")
+        with st.spinner("Fetching most busy locations..."):
+            prompt_busy = f"""
+            Provide a list of 5 most busy tourist locations in the region "{selected_region}" for people interested in "{selected_interest}".
+            The output must be a JSON with a key STRICTLY EQUAL TO "busy_places", which is a list of objects.
+            Each object should include:
+            - "location": name of the location.
+            - "crowd_percentage": an integer indicating the crowd level percentage.
+            """
+            gemini_busy = get_gemini_data(prompt_busy)
+        if gemini_busy and "busy_places" in gemini_busy:
+            busy_places = pd.DataFrame(gemini_busy["busy_places"])
+            busy_places = busy_places.rename(columns={"location": "Location", "crowd_percentage": "Crowd %"})
+            st.bar_chart(busy_places.set_index('Location'))
+        else:
+            st.error("Busy locations data not available.")
+    
+    # Quiet Locations using Gemini API
+    with col2:
+        st.markdown("**Hidden Gems**")
+        with st.spinner("Fetching hidden gems..."):
+            prompt_quiet = f"""
+            Provide a list of 5 lesser-known (hidden gem) tourist locations in the region "{selected_region}" for those interested in "{selected_interest}".
+            The output must be a JSON with a key "quiet_places", which is a list of objects.
+            Each object should include:
+            - "location": name of the location.
+            - "crowd_percentage": an integer indicating the crowd level percentage.
+            """
+            gemini_quiet = get_gemini_data(prompt_quiet)
+        if gemini_quiet and "quiet_places" in gemini_quiet:
+            quiet_places = pd.DataFrame(gemini_quiet["quiet_places"])
+            quiet_places = quiet_places.rename(columns={"location": "Location", "crowd_percentage": "Crowd %"})
+            st.bar_chart(quiet_places.set_index('Location'))
+        else:
+            st.error("Hidden gems data not available.")
+    
+    # Interaction Note
+    st.markdown("""
+    <div style='background: #f8f9fa; padding: 15px; border-radius: 10px; margin-top: 20px;'>
+        🔍 <strong>Pro Tip:</strong> Adjust the filters above to discover seasonal patterns 
+        and optimize your travel timing!
+    </div>
+    """, unsafe_allow_html=True)
+    
+    try:
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", 'B', 16)
+        pdf.cell(0, 10, "Cultural Pulse Dashboard Report", ln=1, align="C")
+        pdf.ln(5)
+        pdf.set_font("Arial", size=12)
+        pdf.cell(0, 10, f"Region: {selected_region}", ln=1)
+        pdf.cell(0, 10, f"Month: {selected_month}", ln=1)
+        pdf.cell(0, 10, f"Interest: {selected_interest}", ln=1)
+        pdf.ln(10)
+        pdf.set_font("Arial", 'B', 14)
+        pdf.cell(0, 10, "1. Tourist Footfall Over the Year", ln=1)
+        pdf.set_font("Arial", size=12)
+        if gemini_fp and "footfall_data" in gemini_fp:
+            for row in gemini_fp["footfall_data"]:
+                pdf.cell(0, 8, f"{row.get('month', '')}: {row.get('visitors', '')} visitors", ln=1)
+        else:
+            pdf.cell(0, 8, "No data available", ln=1)
+        pdf.ln(8)
+        pdf.set_font("Arial", 'B', 14)
+        pdf.cell(0, 10, "2. Most Busy Locations", ln=1)
+        pdf.set_font("Arial", size=12)
+        if gemini_busy and "busy_places" in gemini_busy:
+            for item in gemini_busy["busy_places"]:
+                pdf.cell(0, 8, f"{item.get('location', '')}: {item.get('crowd_percentage', '')}% crowd", ln=1)
+        else:
+            pdf.cell(0, 8, "No data available", ln=1)
+        pdf.ln(8)
+        pdf.set_font("Arial", 'B', 14)
+        pdf.cell(0, 10, "3. Hidden Gems", ln=1)
+        pdf.set_font("Arial", size=12)
+        if gemini_quiet and "quiet_places" in gemini_quiet:
+            for item in gemini_quiet["quiet_places"]:
+                pdf.cell(0, 8, f"{item.get('location', '')}: {item.get('crowd_percentage', '')}% crowd", ln=1)
+        else:
+            pdf.cell(0, 8, "No data available", ln=1)
+            
+        # Generate PDF in memory
+        pdf_output = pdf.output(dest='S').encode('latin1')
+        st.markdown("<div style='padding-top:20px'>", unsafe_allow_html=True)
+        st.download_button("Download PDF Report", data=pdf_output, file_name="cultural_pulse_report.pdf")
+        st.markdown("</div>", unsafe_allow_html=True)
+    except Exception as e:
+        st.error(f"Error generating PDF: {e}")
+
+    st.subheader("🇮🇳 India's Cultural Grid – State-by-State Comparison")
+    st.markdown("Explore cultural statistics and trends across Indian states!")
+    st.markdown("This section provides a structured comparison of cultural data across various states in India, focusing on endangered art forms, festivals, tourist footfall, cultural revenue, accessibility scores, and government schemes.")
+    # get_gemini_data is already defined in this scope, so no need to redefine
+    with st.spinner("Fetching cultural comparison data..."):
+        prompt_grid = """
+        You are an expert on cultural statistics and trends in India. Provide a structured JSON response containing a list of cultural comparison data for various states/regions.
+        Each entry must include:
+        - "state_region": name of the state or region.
+        - "endangered_art_form": an endangered art form prevalent in that region.
+        - "festival_upcoming": name of an upcoming festival.
+        - "tourist_footfall": an estimated number of tourists.
+        - "cultural_revenue": cultural revenue in crore rupees (₹ Cr).
+        - "accessibility_score": a score from 1 to 10 representing cultural accessibility.
+        - "govt_scheme_active": "Yes" or "No" indicating if a relevant government scheme is active.
+        The JSON should have a single key "states_data" which is an array of these objects.
+        Do not include any additional commentary.Add commentMore actions
+        """
+        grid_data = get_gemini_data(prompt_grid)
+
+    if grid_data and "states_data" in grid_data:
+        df_grid = pd.DataFrame(grid_data["states_data"])
+        df_grid = df_grid.rename(columns={
+            "state_region": "State/Region",
+            "endangered_art_form": "Endangered Art Form",
+            "festival_upcoming": "Festival (Upcoming)",
+            "tourist_footfall": "Tourist Footfall",
+            "cultural_revenue": "Cultural Revenue (₹ Cr)",
+            "accessibility_score": "Accessibility Score",
+            "govt_scheme_active": "Govt. Scheme Active"
+        })
+        st.table(df_grid)
+    else:
+        st.error("Failed to retrieve cultural comparison data for the grid.")
+
 elif selected_page == "Whispering Walls":
     st.title("🗣️ Whispering Walls – Audio Stories of Heritage Sites")
     st.markdown("Click on a cultural site to hear its story, narrated like a local guide!")
