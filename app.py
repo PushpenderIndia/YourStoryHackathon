@@ -29,9 +29,10 @@ RAPIDAPI_KEYS = [RAPIDAPI_KEY, RAPIDAPI_KEY_1, RAPIDAPI_KEY_2]
 RAPIDAPI_HOST = "booking-com15.p.rapidapi.com"
 SMALLEST_API_KEY = os.environ.get("SMALLEST_API_KEY", "")
 MONGO_CONNECTION_STRING = os.environ.get("MONGODB_URI", "")
+CURRENT_HOST = os.environ.get("BASE_URL", "http://localhost:8501").rstrip('/')
 
 st.set_page_config(page_title="Rangyatra: Discover India's Hidden Colors of Culture.", layout="wide")
-
+params = st.query_params
 
 @st.cache_resource
 def init_connection():
@@ -58,7 +59,9 @@ def local_css(file_name):
 st.sidebar.title("Navigation")
 page = st.sidebar.radio("Go to", ["Travel Planner", "Cultural Pulse Dashboard", "Whispering Walls", "Arts & Culture Hub", "Social Survey"])
 
-if page == "Travel Planner":
+selected_page = params.get("page") or page
+
+if selected_page == "Travel Planner":
     st.markdown("<h1 style='font-size:38px; text-align: center;'>Rangyatra: Discover India’s Hidden Colors of Culture.</h1>", unsafe_allow_html=True)
     st.markdown("<div style='text-align: center;'>Plan your next adventure with AI-powered recommendations!<br>Made with ❤️ by Team Malaai (Machine Learning And AI)</div>", unsafe_allow_html=True)
     st.markdown("<div style='display: flex; justify-content: center; padding-top: 20px; padding-bottom: 20px;'>"
@@ -118,7 +121,8 @@ if page == "Travel Planner":
                     response.raise_for_status()
 
                     result = response.json()
-                    if result.get("candidates") and result["candidates"][0].get("content") and result["candidates"][0]["content"].get("parts"):
+                    if (result.get("candidates") and result["candidates"][0].get("content") and 
+                        result["candidates"][0]["content"].get("parts")):
                         gemini_response_text = result["candidates"][0]["content"]["parts"][0]["text"]
                         travel_plan = json.loads(gemini_response_text)
 
@@ -212,7 +216,7 @@ if page == "Travel Planner":
                 except Exception as e:
                     st.error(f"Error generating plan: {str(e)}")
 
-elif page == "Cultural Pulse Dashboard":
+elif selected_page == "Cultural Pulse Dashboard":
     # Cultural Pulse Dashboard Page
     st.title("🌍 Cultural Pulse Dashboard – Season & Crowd Trends")
     
@@ -261,160 +265,7 @@ elif page == "Cultural Pulse Dashboard":
             st.error(f"Error fetching data from Gemini API: {str(e)}")
         return None
 
-    # Section 1 – Tourist Footfall using Gemini API
-    st.subheader("📈 Tourist Footfall Over the Year")
-    with st.spinner("Fetching tourist footfall data..."):
-        prompt_fp = f"""
-        Provide monthly tourist footfall data for the region "{selected_region}" for the year 2024.
-        The data should be a JSON with a key "footfall_data" that is a list of 12 objects.
-        Each object must contain:
-        - "month": a three-letter abbreviation (e.g., "Jan", "Feb", etc.)
-        - "visitors": an integer value representing the number of visitors.
-        """
-        gemini_fp = get_gemini_data(prompt_fp)
-    if gemini_fp and "footfall_data" in gemini_fp:
-        footfall_data = pd.DataFrame(gemini_fp["footfall_data"])
-        # Sort the months properly
-        month_order = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", 
-                       "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-        footfall_data['month'] = pd.Categorical(footfall_data['month'], categories=month_order, ordered=True)
-        footfall_data = footfall_data.sort_values('month')
-        st.line_chart(footfall_data.set_index("month"), use_container_width=True)
-    else:
-        st.error("Tourist footfall data not available.")
-
-    # Section 2 – Crowd Comparison using Gemini API
-    st.subheader("🏙️ Crowd Distribution Insights")
-    col1, col2 = st.columns(2)
-    
-    # Busy Locations using Gemini API
-    with col1:
-        st.markdown("**Most Busy Locations**")
-        with st.spinner("Fetching most busy locations..."):
-            prompt_busy = f"""
-            Provide a list of 5 most busy tourist locations in the region "{selected_region}" for people interested in "{selected_interest}".
-            The output must be a JSON with a key STRICTLY EQUAL TO "busy_places", which is a list of objects.
-            Each object should include:
-            - "location": name of the location.
-            - "crowd_percentage": an integer indicating the crowd level percentage.
-            """
-            gemini_busy = get_gemini_data(prompt_busy)
-        if gemini_busy and "busy_places" in gemini_busy:
-            busy_places = pd.DataFrame(gemini_busy["busy_places"])
-            busy_places = busy_places.rename(columns={"location": "Location", "crowd_percentage": "Crowd %"})
-            st.bar_chart(busy_places.set_index('Location'))
-        else:
-            st.error("Busy locations data not available.")
-    
-    # Quiet Locations using Gemini API
-    with col2:
-        st.markdown("**Hidden Gems**")
-        with st.spinner("Fetching hidden gems..."):
-            prompt_quiet = f"""
-            Provide a list of 5 lesser-known (hidden gem) tourist locations in the region "{selected_region}" for those interested in "{selected_interest}".
-            The output must be a JSON with a key "quiet_places", which is a list of objects.
-            Each object should include:
-            - "location": name of the location.
-            - "crowd_percentage": an integer indicating the crowd level percentage.
-            """
-            gemini_quiet = get_gemini_data(prompt_quiet)
-        if gemini_quiet and "quiet_places" in gemini_quiet:
-            quiet_places = pd.DataFrame(gemini_quiet["quiet_places"])
-            quiet_places = quiet_places.rename(columns={"location": "Location", "crowd_percentage": "Crowd %"})
-            st.bar_chart(quiet_places.set_index('Location'))
-        else:
-            st.error("Hidden gems data not available.")
-    
-    # Interaction Note
-    st.markdown("""
-    <div style='background: #f8f9fa; padding: 15px; border-radius: 10px; margin-top: 20px;'>
-        🔍 <strong>Pro Tip:</strong> Adjust the filters above to discover seasonal patterns 
-        and optimize your travel timing!
-    </div>
-    """, unsafe_allow_html=True)
-    
-    try:
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", 'B', 16)
-        pdf.cell(0, 10, "Cultural Pulse Dashboard Report", ln=1, align="C")
-        pdf.ln(5)
-        pdf.set_font("Arial", size=12)
-        pdf.cell(0, 10, f"Region: {selected_region}", ln=1)
-        pdf.cell(0, 10, f"Month: {selected_month}", ln=1)
-        pdf.cell(0, 10, f"Interest: {selected_interest}", ln=1)
-        pdf.ln(10)
-        pdf.set_font("Arial", 'B', 14)
-        pdf.cell(0, 10, "1. Tourist Footfall Over the Year", ln=1)
-        pdf.set_font("Arial", size=12)
-        if gemini_fp and "footfall_data" in gemini_fp:
-            for row in gemini_fp["footfall_data"]:
-                pdf.cell(0, 8, f"{row.get('month', '')}: {row.get('visitors', '')} visitors", ln=1)
-        else:
-            pdf.cell(0, 8, "No data available", ln=1)
-        pdf.ln(8)
-        pdf.set_font("Arial", 'B', 14)
-        pdf.cell(0, 10, "2. Most Busy Locations", ln=1)
-        pdf.set_font("Arial", size=12)
-        if gemini_busy and "busy_places" in gemini_busy:
-            for item in gemini_busy["busy_places"]:
-                pdf.cell(0, 8, f"{item.get('location', '')}: {item.get('crowd_percentage', '')}% crowd", ln=1)
-        else:
-            pdf.cell(0, 8, "No data available", ln=1)
-        pdf.ln(8)
-        pdf.set_font("Arial", 'B', 14)
-        pdf.cell(0, 10, "3. Hidden Gems", ln=1)
-        pdf.set_font("Arial", size=12)
-        if gemini_quiet and "quiet_places" in gemini_quiet:
-            for item in gemini_quiet["quiet_places"]:
-                pdf.cell(0, 8, f"{item.get('location', '')}: {item.get('crowd_percentage', '')}% crowd", ln=1)
-        else:
-            pdf.cell(0, 8, "No data available", ln=1)
-            
-        # Generate PDF in memory
-        pdf_output = pdf.output(dest='S').encode('latin1')
-        st.markdown("<div style='padding-top:20px'>", unsafe_allow_html=True)
-        st.download_button("Download PDF Report", data=pdf_output, file_name="cultural_pulse_report.pdf")
-        st.markdown("</div>", unsafe_allow_html=True)
-    except Exception as e:
-        st.error(f"Error generating PDF: {e}")
-
-    st.subheader("🇮🇳 India's Cultural Grid – State-by-State Comparison")
-    st.markdown("Explore cultural statistics and trends across Indian states!")
-    st.markdown("This section provides a structured comparison of cultural data across various states in India, focusing on endangered art forms, festivals, tourist footfall, cultural revenue, accessibility scores, and government schemes.")
-    # get_gemini_data is already defined in this scope, so no need to redefine
-    with st.spinner("Fetching cultural comparison data..."):
-        prompt_grid = """
-        You are an expert on cultural statistics and trends in India. Provide a structured JSON response containing a list of cultural comparison data for various states/regions.
-        Each entry must include:
-        - "state_region": name of the state or region.
-        - "endangered_art_form": an endangered art form prevalent in that region.
-        - "festival_upcoming": name of an upcoming festival.
-        - "tourist_footfall": an estimated number of tourists.
-        - "cultural_revenue": cultural revenue in crore rupees (₹ Cr).
-        - "accessibility_score": a score from 1 to 10 representing cultural accessibility.
-        - "govt_scheme_active": "Yes" or "No" indicating if a relevant government scheme is active.
-        The JSON should have a single key "states_data" which is an array of these objects.
-        Do not include any additional commentary.
-        """
-        grid_data = get_gemini_data(prompt_grid)
-
-    if grid_data and "states_data" in grid_data:
-        df_grid = pd.DataFrame(grid_data["states_data"])
-        df_grid = df_grid.rename(columns={
-            "state_region": "State/Region",
-            "endangered_art_form": "Endangered Art Form",
-            "festival_upcoming": "Festival (Upcoming)",
-            "tourist_footfall": "Tourist Footfall",
-            "cultural_revenue": "Cultural Revenue (₹ Cr)",
-            "accessibility_score": "Accessibility Score",
-            "govt_scheme_active": "Govt. Scheme Active"
-        })
-        st.table(df_grid)
-    else:
-        st.error("Failed to retrieve cultural comparison data for the grid.")
-
-elif page == "Whispering Walls":
+elif selected_page == "Whispering Walls":
     st.title("🗣️ Whispering Walls – Audio Stories of Heritage Sites")
     st.markdown("Click on a cultural site to hear its story, narrated like a local guide!")
 
@@ -431,8 +282,7 @@ elif page == "Whispering Walls":
         "Fatehpur Sikri"
     ]
 
-    selected_site = st.selectbox("Choose or type a cultural site:", cultural_sites_list + [""]) # Add empty string for typing
-
+    selected_site = st.selectbox("Choose or type a cultural site:", cultural_sites_list + [""])
     if selected_site == "":
         typed_site = st.text_input("Or type the name of a cultural site:", "")
         if typed_site:
@@ -440,35 +290,30 @@ elif page == "Whispering Walls":
         else:
             selected_site = None
     elif selected_site is None:
-        pass # No site selected yet
+        pass
 
     if selected_site:
         st.subheader(f"Exploring {selected_site}")
 
-        # Function to get a simple image URL (very basic, might not always work well)
         def get_main_wikipedia_image_url(query):
             try:
-                # Step 1: Search for the page to get the exact title
                 search_results = wikipedia.search(query, results=1)
                 if not search_results:
                     return None
                 
                 page_title = search_results[0]
-                
-                # Step 2: Use MediaWiki API to get page images (more robust than wikipedia.page.images)
-                # This API call often returns a 'thumbnail' or 'original' URL if available.
                 api_url = "https://en.wikipedia.org/w/api.php"
                 params = {
                     "action": "query",
                     "format": "json",
                     "titles": page_title,
                     "prop": "pageimages",
-                    "pithumbsize": 500, # Request a thumbnail of this size
-                    "redirects": 1 # Follow redirects
+                    "pithumbsize": 500,
+                    "redirects": 1
                 }
                 
                 response = requests.get(api_url, params=params)
-                response.raise_for_status() # Raise an exception for HTTP errors
+                response.raise_for_status()
                 data = response.json()
                 
                 pages = data.get("query", {}).get("pages", {})
@@ -476,13 +321,12 @@ elif page == "Whispering Walls":
                     page_info = pages[page_id]
                     if "thumbnail" in page_info:
                         return page_info["thumbnail"]["source"]
-                    elif "original" in page_info.get("pageimageinfo", {}): # Sometimes image info is nested differently
+                    elif "original" in page_info.get("pageimageinfo", {}):
                         return page_info["pageimageinfo"]["original"]["url"]
                 return None
 
             except wikipedia.exceptions.DisambiguationError as e:
                 st.warning(f"Multiple results found for '{query}'. Trying the first option: {e.options[0]}.")
-                # Try to get image for the first option
                 return get_main_wikipedia_image_url(e.options[0])
             except wikipedia.exceptions.PageError:
                 st.warning(f"No Wikipedia page found for '{query}'.")
@@ -516,15 +360,15 @@ elif page == "Whispering Walls":
                                 "role": "user",
                                 "parts": [{"text": prompt}]
                             }],
-                            "generationConfig": {"maxOutputTokens": 500} # Limit the response length
+                            "generationConfig": {"maxOutputTokens": 500}
                         }
                         response = requests.post(f"{GEMINI_API_URL}?key={GEMINI_API_KEY}", headers=headers, json=payload)
                         response.raise_for_status()
                         result = response.json()
-                        if result.get("candidates") and result["candidates"][0].get("content") and result["candidates"][0]["content"].get("parts"):
+                        if (result.get("candidates") and result["candidates"][0].get("content") 
+                            and result["candidates"][0]["content"].get("parts")):
                             story_text = result["candidates"][0]["content"]["parts"][0]["text"]
 
-                            # Synthesize audio using WavesClient
                             waves_client = WavesClient(api_key=SMALLEST_API_KEY)
                             waves_client.synthesize(
                                 text=story_text,
@@ -540,8 +384,7 @@ elif page == "Whispering Walls":
                             st.success("Enjoy the story!")
                             st.markdown("---")
                             st.subheader("Story Transcript:")
-                            st.write(story_text) # Display the generated text as well
-
+                            st.write(story_text)
                         else:
                             st.error("Failed to generate the audio story.")
 
@@ -560,12 +403,10 @@ elif page == "Whispering Walls":
             <li><strong>Immersive & Inclusive:</strong> Experience history through audio, great for all users.</li>
             <li><strong>Flexible Exploration:</strong> Discover stories of both well-known and lesser-known sites.</li>
         </ul>
-        <br>
     </div>
     """, unsafe_allow_html=True)
 
-elif page == "Arts & Culture Hub":
-    # India Arts & Culture Map
+elif selected_page == "Arts & Culture Hub":
     st.header("🖼️ India Arts & Culture Map")
     state_names = [
         "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
@@ -580,10 +421,8 @@ elif page == "Arts & Culture Hub":
     if selected_state:
         st.subheader(f"Famous Arts & Culture in {selected_state}")
 
-        # Add language dropdown
         language = st.selectbox("Select Language", ["English", "Hindi", "Tamil", "Telugu", "Bengali"])
 
-        # Define a function to call Gemini API
         def get_gemini_data(prompt):
             if not GEMINI_API_KEY:
                 st.error("Gemini API Key is not set!")
@@ -600,9 +439,8 @@ elif page == "Arts & Culture Hub":
                 response = requests.post(f"{GEMINI_API_URL}?key={GEMINI_API_KEY}", headers=headers, json=payload)
                 response.raise_for_status()
                 result = response.json()
-                if (result.get("candidates") 
-                    and result["candidates"][0].get("content") 
-                    and result["candidates"][0]["content"].get("parts")):
+                if (result.get("candidates") and result["candidates"][0].get("content") and 
+                    result["candidates"][0]["content"].get("parts")):
                     data_text = result["candidates"][0]["content"]["parts"][0]["text"]
                     return json.loads(data_text)
                 else:
@@ -611,7 +449,6 @@ elif page == "Arts & Culture Hub":
                 st.error(f"Error fetching data from Gemini API: {e}")
             return None
 
-        # Define a helper to fetch Wikipedia image
         def get_wikipedia_image_url(query):
             try:
                 search_results = wikipedia.search(query, results=1)
@@ -640,7 +477,6 @@ elif page == "Arts & Culture Hub":
                 st.error(f"Error fetching image from Wikipedia: {e}")
                 return None
 
-        # Create the prompt for Gemini API to get arts and culture details with language preference
         arts_prompt = f"""
         You are an expert on Indian arts and culture. Provide a structured JSON response 
         with the famous arts, cultural events, and heritage highlights for the state "{selected_state}" in {language}.
@@ -669,7 +505,7 @@ elif page == "Arts & Culture Hub":
         else:
             st.error("Failed to retrieve arts & culture details.")
 
-elif page == "Social Survey":
+elif selected_page == "Social Survey":
     st.title("Social Survey")
 
     if db is None:
@@ -679,13 +515,10 @@ elif page == "Social Survey":
     surveys_collection = db["surveys"]
     responses_collection = db["responses"]
 
-    BANNED_WORDS = ["badword1", "profanity2", "exampleabuse3", "hate", "violence"] # Example list
+    BANNED_WORDS = ["badword1", "profanity2", "exampleabuse3", "hate", "violence"]
 
-    # Get query parameters
-    params = st.query_params
     survey_id_from_url = None
     if "survey_id" in params:
-        # st.query_params returns a list for each param, get the first element
         survey_id_from_url = params.get("survey_id")[0] if isinstance(params.get("survey_id"), list) else params.get("survey_id")
 
     question_from_url = None
@@ -695,13 +528,12 @@ elif page == "Social Survey":
             question_from_url = urllib.parse.unquote(raw_question)
 
     if survey_id_from_url and question_from_url:
-        # Response Mode
         st.subheader("Respond to Survey")
         st.markdown(f"**Question:** {question_from_url}")
 
-        user_response = st.text_area("Your Response:", key=f"response_area_{survey_id_from_url}") # Unique key for text_area
+        user_response = st.text_area("Your Response:", key=f"response_area_{survey_id_from_url}")
 
-        if st.button("Submit Response", type="primary", key=f"submit_response_{survey_id_from_url}"): # Unique key for button
+        if st.button("Submit Response", type="primary", key=f"submit_response_{survey_id_from_url}"):
             if not user_response.strip():
                 st.warning("Please enter a response.")
             else:
@@ -709,7 +541,7 @@ elif page == "Social Survey":
                 response_lower = response_text.lower()
                 contains_banned_word = False
                 for word in BANNED_WORDS:
-                    if word.lower() in response_lower: # Simple substring check
+                    if word.lower() in response_lower:
                         contains_banned_word = True
                         break
 
@@ -718,72 +550,69 @@ elif page == "Social Survey":
                 else:
                     response_doc = {
                         "survey_id": survey_id_from_url,
-                        "response_text": response_text, # Store original casing
+                        "response_text": response_text,
                         "responded_at": datetime.utcnow()
                     }
                     try:
                         responses_collection.insert_one(response_doc)
                         st.success("Your response has been submitted successfully!")
-                        # To prevent re-submission on refresh and clear form, we can use session state or just leave as is for now
-                        # st.experimental_rerun() # Could be used but might have side effects if not handled carefully
                     except Exception as e:
                         st.error(f"Failed to submit response: {e}")
     else:
-        # Creation / View Mode (View part will be added later)
         st.subheader("Create a New Social Survey")
         location_xyz = st.text_input("Enter a location (e.g., 'your city', 'a nearby park') for {XYZ} placeholder:")
-    date_abc = st.text_input("Enter a date or event (e.g., 'next weekend', 'tomorrow evening') for {ABC} placeholder (optional):")
+        date_abc = st.text_input("Enter a date or event (e.g., 'next weekend', 'tomorrow evening') for {ABC} placeholder (optional):")
 
-    templates = [
-        "Asking for suggestions for unexplored and local places around {XYZ}.",
-        "I am planning to visit {XYZ} on {ABC}. If anyone is nearby, let's catch up!",
-        "What's your favorite hidden gem in {XYZ}?",
-        "Share your recommendations for must-try street food in {XYZ}."
-    ]
-    selected_template = st.selectbox("Choose a message template:", templates)
+        templates = [
+            "Asking for suggestions for unexplored and local places around {XYZ}.",
+            "I am planning to visit {XYZ} on {ABC}. If anyone is nearby, let's catch up!",
+            "What's your favorite hidden gem in {XYZ}?",
+            "Share your recommendations for must-try street food in {XYZ}."
+        ]
+        selected_template = st.selectbox("Choose a message template:", templates)
 
-    generate_button_disabled = False
-    if "{XYZ}" in selected_template and not location_xyz:
-        st.warning("Please enter a location for {XYZ} to use this template.")
-        generate_button_disabled = True
+        generate_button_disabled = False
+        if "{XYZ}" in selected_template and not location_xyz:
+            st.warning("Please enter a location for {XYZ} to use this template.")
+            generate_button_disabled = True
 
-    if st.button("Generate Survey Link", type="primary", disabled=generate_button_disabled):
-        if not location_xyz and "{XYZ}" in selected_template: # Redundant check, but good for safety
-            st.error("Location {XYZ} is required for this template. Please fill it.")
-        else:
-            final_question = selected_template
-            if location_xyz: # Only replace if location_xyz is provided
-                final_question = final_question.replace("{XYZ}", location_xyz)
+        if st.button("Generate Survey Link", type="primary", disabled=generate_button_disabled):
+            if not location_xyz and "{XYZ}" in selected_template:
+                st.error("Location {XYZ} is required for this template. Please fill it.")
+            else:
+                final_question = selected_template
+                if location_xyz:
+                    final_question = final_question.replace("{XYZ}", location_xyz)
 
-            if "{ABC}" in final_question:
-                if date_abc:
-                    final_question = final_question.replace("{ABC}", date_abc)
-                else: # If {ABC} is in template but not provided, remove it or ask user
-                    final_question = final_question.replace("on {ABC}", "").replace("{ABC}", "soon") # Basic handling
+                if "{ABC}" in final_question:
+                    if date_abc:
+                        final_question = final_question.replace("{ABC}", date_abc)
+                    else:
+                        final_question = final_question.replace("on {ABC}", "").replace("{ABC}", "soon")
 
-            survey_id = str(uuid.uuid4())
+                survey_id = str(uuid.uuid4())
 
-            try:
-                survey_doc = {
-                    "survey_id": survey_id,
-                    "question": final_question,
-                    "created_at": datetime.utcnow() # Ensure datetime is imported
-                }
-                surveys_collection.insert_one(survey_doc)
+                try:
+                    survey_doc = {
+                        "survey_id": survey_id,
+                        "question": final_question,
+                        "created_at": datetime.utcnow()
+                    }
+                    surveys_collection.insert_one(survey_doc)
 
-                encoded_question = urllib.parse.quote(final_question)
+                    encoded_question = urllib.parse.quote(final_question)
 
-                st.success("Survey Link Generated!")
-                st.markdown(f"**Survey Question:** {final_question}")
-                st.markdown(f"**Shareable Query Parameters:**")
-                st.code(f"survey_id={survey_id}&question={encoded_question}", language=None)
-                st.caption("Append these parameters to your current app's URL (e.g., your-streamlit-app-url/?page=Social+Survey&survey_id=...&question=...).")
-                st.info("Note: To properly test the survey link, you'll need to open it in a new browser tab or window, appending the parameters to the base URL of your Streamlit application followed by `&page=Social+Survey` if not already part of your base URL structure for pages.")
+                    st.success("Survey Link Generated!")
+                    st.markdown(f"**Survey Question:** {final_question}")
+                    st.markdown(f"**Shareable URL:**")
+                    st.code(f"{CURRENT_HOST}/?page=Social+Survey&survey_id={survey_id}&question={encoded_question}", language=None)
+                    st.caption("Append these parameters to your current app's URL (e.g., your-streamlit-app-url/?page=Social+Survey&survey_id=...&question=...).")
+                    st.info("Note: To properly test the survey link, you'll need to open it in a new browser tab or window, appending the parameters to the base URL of your Streamlit application followed by `&page=Social+Survey` if not already part of your base URL structure for pages.")
 
-            except Exception as e:
-                st.error(f"Error saving survey to database: {e}")
+                except Exception as e:
+                    st.error(f"Error saving survey to database: {e}")
 
-        st.markdown("---") # Separator before showing past responses
+        st.markdown("---")
         st.subheader("Past Survey Responses")
 
         try:
@@ -808,7 +637,7 @@ elif page == "Social Survey":
             surveys_to_display = all_surveys[start_idx:end_idx]
 
             if not surveys_to_display:
-                st.info("No surveys on this page.") # Should not happen if total_pages is calculated correctly unless total_surveys is 0
+                st.info("No surveys on this page.")
             else:
                 for survey in surveys_to_display:
                     st.markdown("---")
@@ -842,5 +671,5 @@ elif page == "Social Survey":
                                     st.caption(f"Responded at: {responded_at_display.strftime('%Y-%m-%d %H:%M:%S UTC')}")
                                 else:
                                     st.caption("Responded at: N/A")
-                                if i < len(survey_responses) - 1: # Add separator if not the last response
+                                if i < len(survey_responses) - 1:
                                     st.markdown("---")
