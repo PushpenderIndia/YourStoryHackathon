@@ -14,6 +14,9 @@ from smallestai.waves import WavesClient
 import wikipedia
 from fpdf import FPDF
 import io
+import pymongo
+import uuid
+import urllib.parse
 
 load_dotenv()
 
@@ -25,8 +28,25 @@ RAPIDAPI_KEY_2 = os.environ.get("RAPIDAPI_KEY_2", "")
 RAPIDAPI_KEYS = [RAPIDAPI_KEY, RAPIDAPI_KEY_1, RAPIDAPI_KEY_2] 
 RAPIDAPI_HOST = "booking-com15.p.rapidapi.com"
 SMALLEST_API_KEY = os.environ.get("SMALLEST_API_KEY", "")
+MONGO_CONNECTION_STRING = os.environ.get("MONGODB_URI", "")
 
-st.set_page_config(page_title="Rangyatra: Discover India’s Hidden Colors of Culture.", layout="wide")
+st.set_page_config(page_title="Rangyatra: Discover India's Hidden Colors of Culture.", layout="wide")
+
+
+@st.cache_resource
+def init_connection():
+    """Initializes a connection to MongoDB and returns the database object."""
+    try:
+        client = pymongo.MongoClient(MONGO_CONNECTION_STRING)
+        client.admin.command('ping') # Verify connection
+        db = client.rangyatra # Select the database
+        # st.success("Successfully connected to MongoDB!")
+        return db
+    except Exception as e:
+        st.error(f"Failed to connect to MongoDB: {e}")
+        return None
+
+db = init_connection() # Initialize connection when the app starts
 
 def local_css(file_name):
     with open(file_name) as f:
@@ -36,7 +56,7 @@ def local_css(file_name):
 
 # Page selection in sidebar
 st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["Travel Planner", "Cultural Pulse Dashboard", "Whispering Walls", "Arts & Culture Hub", "India's Cultural Grid"])
+page = st.sidebar.radio("Go to", ["Travel Planner", "Cultural Pulse Dashboard", "Whispering Walls", "Arts & Culture Hub", "Social Survey"])
 
 if page == "Travel Planner":
     st.markdown("<h1 style='font-size:38px; text-align: center;'>Rangyatra: Discover India’s Hidden Colors of Culture.</h1>", unsafe_allow_html=True)
@@ -359,6 +379,41 @@ elif page == "Cultural Pulse Dashboard":
     except Exception as e:
         st.error(f"Error generating PDF: {e}")
 
+    st.subheader("🇮🇳 India's Cultural Grid – State-by-State Comparison")
+    st.markdown("Explore cultural statistics and trends across Indian states!")
+    st.markdown("This section provides a structured comparison of cultural data across various states in India, focusing on endangered art forms, festivals, tourist footfall, cultural revenue, accessibility scores, and government schemes.")
+    # get_gemini_data is already defined in this scope, so no need to redefine
+    with st.spinner("Fetching cultural comparison data..."):
+        prompt_grid = """
+        You are an expert on cultural statistics and trends in India. Provide a structured JSON response containing a list of cultural comparison data for various states/regions.
+        Each entry must include:
+        - "state_region": name of the state or region.
+        - "endangered_art_form": an endangered art form prevalent in that region.
+        - "festival_upcoming": name of an upcoming festival.
+        - "tourist_footfall": an estimated number of tourists.
+        - "cultural_revenue": cultural revenue in crore rupees (₹ Cr).
+        - "accessibility_score": a score from 1 to 10 representing cultural accessibility.
+        - "govt_scheme_active": "Yes" or "No" indicating if a relevant government scheme is active.
+        The JSON should have a single key "states_data" which is an array of these objects.
+        Do not include any additional commentary.
+        """
+        grid_data = get_gemini_data(prompt_grid)
+
+    if grid_data and "states_data" in grid_data:
+        df_grid = pd.DataFrame(grid_data["states_data"])
+        df_grid = df_grid.rename(columns={
+            "state_region": "State/Region",
+            "endangered_art_form": "Endangered Art Form",
+            "festival_upcoming": "Festival (Upcoming)",
+            "tourist_footfall": "Tourist Footfall",
+            "cultural_revenue": "Cultural Revenue (₹ Cr)",
+            "accessibility_score": "Accessibility Score",
+            "govt_scheme_active": "Govt. Scheme Active"
+        })
+        st.table(df_grid)
+    else:
+        st.error("Failed to retrieve cultural comparison data for the grid.")
+
 elif page == "Whispering Walls":
     st.title("🗣️ Whispering Walls – Audio Stories of Heritage Sites")
     st.markdown("Click on a cultural site to hear its story, narrated like a local guide!")
@@ -614,65 +669,178 @@ elif page == "Arts & Culture Hub":
         else:
             st.error("Failed to retrieve arts & culture details.")
 
-elif page == "India's Cultural Grid":
-    # Gemini API integration for cultural comparison
-    st.title("🇮🇳 India's Cultural Grid – State-by-State Comparison")
-    st.markdown("Explore cultural statistics and trends across Indian states!")
-    st.markdown("This section provides a structured comparison of cultural data across various states in India, focusing on endangered art forms, festivals, tourist footfall, cultural revenue, accessibility scores, and government schemes.")
-    def get_gemini_data(prompt):
-        if not GEMINI_API_KEY:
-            st.error("Gemini API Key is not set!")
-            return None
-        headers = {"Content-Type": "application/json"}
-        payload = {
-            "contents": [{
-                "role": "user",
-                "parts": [{"text": prompt}]
-            }],
-            "generationConfig": {"responseMimeType": "application/json"}
-        }
-        try:
-            response = requests.post(f"{GEMINI_API_URL}?key={GEMINI_API_KEY}", headers=headers, json=payload)
-            response.raise_for_status()
-            result = response.json()
-            if (result.get("candidates") and 
-                result["candidates"][0].get("content") and 
-                result["candidates"][0]["content"].get("parts")):
-                data_text = result["candidates"][0]["content"]["parts"][0]["text"]
-                return json.loads(data_text)
+elif page == "Social Survey":
+    st.title("Social Survey")
+
+    if db is None:
+        st.error("Database connection not available. Please check MongoDB setup.")
+        st.stop()
+
+    surveys_collection = db["surveys"]
+    responses_collection = db["responses"]
+
+    BANNED_WORDS = ["badword1", "profanity2", "exampleabuse3", "hate", "violence"] # Example list
+
+    # Get query parameters
+    params = st.query_params
+    survey_id_from_url = None
+    if "survey_id" in params:
+        # st.query_params returns a list for each param, get the first element
+        survey_id_from_url = params.get("survey_id")[0] if isinstance(params.get("survey_id"), list) else params.get("survey_id")
+
+    question_from_url = None
+    if "question" in params:
+        raw_question = params.get("question")[0] if isinstance(params.get("question"), list) else params.get("question")
+        if raw_question:
+            question_from_url = urllib.parse.unquote(raw_question)
+
+    if survey_id_from_url and question_from_url:
+        # Response Mode
+        st.subheader("Respond to Survey")
+        st.markdown(f"**Question:** {question_from_url}")
+
+        user_response = st.text_area("Your Response:", key=f"response_area_{survey_id_from_url}") # Unique key for text_area
+
+        if st.button("Submit Response", type="primary", key=f"submit_response_{survey_id_from_url}"): # Unique key for button
+            if not user_response.strip():
+                st.warning("Please enter a response.")
             else:
-                st.error("Invalid response from Gemini API")
-        except Exception as e:
-            st.error(f"Error fetching data from Gemini API: {e}")
-        return None
+                response_text = user_response.strip()
+                response_lower = response_text.lower()
+                contains_banned_word = False
+                for word in BANNED_WORDS:
+                    if word.lower() in response_lower: # Simple substring check
+                        contains_banned_word = True
+                        break
 
-    with st.spinner("Fetching cultural comparison data..."):
-        prompt = """
-        You are an expert on cultural statistics and trends in India. Provide a structured JSON response containing a list of cultural comparison data for various states/regions.
-        Each entry must include:
-        - "state_region": name of the state or region.
-        - "endangered_art_form": an endangered art form prevalent in that region.
-        - "festival_upcoming": name of an upcoming festival.
-        - "tourist_footfall": an estimated number of tourists.
-        - "cultural_revenue": cultural revenue in crore rupees (₹ Cr).
-        - "accessibility_score": a score from 1 to 10 representing cultural accessibility.
-        - "govt_scheme_active": "Yes" or "No" indicating if a relevant government scheme is active.
-        The JSON should have a single key "states_data" which is an array of these objects.
-        Do not include any additional commentary.
-        """
-        data = get_gemini_data(prompt)
-
-    if data and "states_data" in data:
-        df = pd.DataFrame(data["states_data"])
-        df = df.rename(columns={
-            "state_region": "State/Region",
-            "endangered_art_form": "Endangered Art Form",
-            "festival_upcoming": "Festival (Upcoming)",
-            "tourist_footfall": "Tourist Footfall",
-            "cultural_revenue": "Cultural Revenue (₹ Cr)",
-            "accessibility_score": "Accessibility Score",
-            "govt_scheme_active": "Govt. Scheme Active"
-        })
-        st.table(df)
+                if contains_banned_word:
+                    st.error("Your response contains inappropriate language and cannot be submitted. Please revise your response.")
+                else:
+                    response_doc = {
+                        "survey_id": survey_id_from_url,
+                        "response_text": response_text, # Store original casing
+                        "responded_at": datetime.utcnow()
+                    }
+                    try:
+                        responses_collection.insert_one(response_doc)
+                        st.success("Your response has been submitted successfully!")
+                        # To prevent re-submission on refresh and clear form, we can use session state or just leave as is for now
+                        # st.experimental_rerun() # Could be used but might have side effects if not handled carefully
+                    except Exception as e:
+                        st.error(f"Failed to submit response: {e}")
     else:
-        st.error("Failed to retrieve cultural comparison data.")
+        # Creation / View Mode (View part will be added later)
+        st.subheader("Create a New Social Survey")
+        location_xyz = st.text_input("Enter a location (e.g., 'your city', 'a nearby park') for {XYZ} placeholder:")
+    date_abc = st.text_input("Enter a date or event (e.g., 'next weekend', 'tomorrow evening') for {ABC} placeholder (optional):")
+
+    templates = [
+        "Asking for suggestions for unexplored and local places around {XYZ}.",
+        "I am planning to visit {XYZ} on {ABC}. If anyone is nearby, let's catch up!",
+        "What's your favorite hidden gem in {XYZ}?",
+        "Share your recommendations for must-try street food in {XYZ}."
+    ]
+    selected_template = st.selectbox("Choose a message template:", templates)
+
+    generate_button_disabled = False
+    if "{XYZ}" in selected_template and not location_xyz:
+        st.warning("Please enter a location for {XYZ} to use this template.")
+        generate_button_disabled = True
+
+    if st.button("Generate Survey Link", type="primary", disabled=generate_button_disabled):
+        if not location_xyz and "{XYZ}" in selected_template: # Redundant check, but good for safety
+            st.error("Location {XYZ} is required for this template. Please fill it.")
+        else:
+            final_question = selected_template
+            if location_xyz: # Only replace if location_xyz is provided
+                final_question = final_question.replace("{XYZ}", location_xyz)
+
+            if "{ABC}" in final_question:
+                if date_abc:
+                    final_question = final_question.replace("{ABC}", date_abc)
+                else: # If {ABC} is in template but not provided, remove it or ask user
+                    final_question = final_question.replace("on {ABC}", "").replace("{ABC}", "soon") # Basic handling
+
+            survey_id = str(uuid.uuid4())
+
+            try:
+                survey_doc = {
+                    "survey_id": survey_id,
+                    "question": final_question,
+                    "created_at": datetime.utcnow() # Ensure datetime is imported
+                }
+                surveys_collection.insert_one(survey_doc)
+
+                encoded_question = urllib.parse.quote(final_question)
+
+                st.success("Survey Link Generated!")
+                st.markdown(f"**Survey Question:** {final_question}")
+                st.markdown(f"**Shareable Query Parameters:**")
+                st.code(f"survey_id={survey_id}&question={encoded_question}", language=None)
+                st.caption("Append these parameters to your current app's URL (e.g., your-streamlit-app-url/?page=Social+Survey&survey_id=...&question=...).")
+                st.info("Note: To properly test the survey link, you'll need to open it in a new browser tab or window, appending the parameters to the base URL of your Streamlit application followed by `&page=Social+Survey` if not already part of your base URL structure for pages.")
+
+            except Exception as e:
+                st.error(f"Error saving survey to database: {e}")
+
+        st.markdown("---") # Separator before showing past responses
+        st.subheader("Past Survey Responses")
+
+        try:
+            all_surveys_cursor = surveys_collection.find().sort("created_at", -1)
+            all_surveys = list(all_surveys_cursor)
+        except Exception as e:
+            st.error(f"Error fetching surveys: {e}")
+            all_surveys = []
+
+        if not all_surveys:
+            st.info("No surveys have been created yet.")
+        else:
+            items_per_page = 5
+            total_surveys = len(all_surveys)
+            total_pages = (total_surveys + items_per_page - 1) // items_per_page
+            if total_pages == 0: total_pages = 1
+
+            current_page = st.number_input("Page", min_value=1, max_value=total_pages, value=1, key="pagination_survey_list", help=f"Showing {items_per_page} surveys per page.")
+
+            start_idx = (current_page - 1) * items_per_page
+            end_idx = start_idx + items_per_page
+            surveys_to_display = all_surveys[start_idx:end_idx]
+
+            if not surveys_to_display:
+                st.info("No surveys on this page.") # Should not happen if total_pages is calculated correctly unless total_surveys is 0
+            else:
+                for survey in surveys_to_display:
+                    st.markdown("---")
+                    survey_question = survey.get('question', 'N/A')
+                    survey_id_display = survey.get('survey_id', 'N/A')
+                    created_at_display = survey.get('created_at')
+
+                    st.markdown(f"#### Survey Question: {survey_question}")
+                    if created_at_display:
+                        st.caption(f"Survey ID: {survey_id_display} | Created: {created_at_display.strftime('%Y-%m-%d %H:%M:%S UTC')}")
+                    else:
+                        st.caption(f"Survey ID: {survey_id_display} | Created: N/A")
+
+                    try:
+                        survey_responses_cursor = responses_collection.find({"survey_id": survey_id_display}).sort("responded_at", -1)
+                        survey_responses = list(survey_responses_cursor)
+                    except Exception as e:
+                        st.error(f"Error fetching responses for survey ID {survey_id_display}: {e}")
+                        survey_responses = []
+
+                    if not survey_responses:
+                        st.markdown("_No responses yet for this survey._")
+                    else:
+                        with st.expander(f"View {len(survey_responses)} Response(s) for survey: '{survey_question[:50]}...'"):
+                            for i, response in enumerate(survey_responses):
+                                response_text = response.get('response_text', 'N/A')
+                                responded_at_display = response.get('responded_at')
+
+                                st.markdown(f"**Response {i+1}:** {response_text}")
+                                if responded_at_display:
+                                    st.caption(f"Responded at: {responded_at_display.strftime('%Y-%m-%d %H:%M:%S UTC')}")
+                                else:
+                                    st.caption("Responded at: N/A")
+                                if i < len(survey_responses) - 1: # Add separator if not the last response
+                                    st.markdown("---")
