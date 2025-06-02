@@ -110,10 +110,10 @@ So we built **Rang Yatra** — a cultural bridge powered by **AI, storytelling, 
 
 | Area            | Tech Used                          |
 |-----------------|------------------------------------|
-| Frontend        | Streamlit, HTML, CSS               |
-| AI/NLP          | Gemini AI, Google Text-to-Speech   |
+| Frontend        | Streamlit                          |
+| APIs            | Gemini AI, Google Text-to-Speech   |
 | APIs            | OpenWeather, Hotels.com, Google    |
-| Backend         | Python                             |
+| Backend         | Snowflake                          |
 | Accessibility   | Screen Reader, Voice-First Design  |
 
 ---
