@@ -1,6 +1,8 @@
-# 🇮🇳 Malaai – Mapping India’s Culture with AI
+# 🇮🇳 Rang Yatra
 
-**Team Malaai** presents an inclusive and intelligent travel platform powered by AI — created to preserve India’s rich cultural heritage while solving real issues faced by travelers, policymakers, and underrepresented communities.
+**Where Tradition Meets Technology — Empowering Locals, Inspiring Tourists.**
+
+Rang Yatra is an AI-powered cultural tourism platform developed by Team Malaai (Machine Learning And Artificial Intelligence). Our mission is to bridge the gap between India’s rich heritage and modern travelers, by building a smart, inclusive, and community-driven solution.
 
 🌍 [🔗 Live App Demo](https://rang-yatra.streamlit.app/)  
 📺 [▶️ YouTube Walkthrough](https://youtu.be/5ybD2DIpwXU?si=Jgp6816uRFMUsNtH)
